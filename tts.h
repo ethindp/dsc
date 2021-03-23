@@ -10,7 +10,7 @@
 #endif
 #include <exception>
 
-namespace TTS {
+namespace tts {
 #if (BOOST_OS_WINDOWS==1)
 class TolkLoadException : public std::exception {
 public:

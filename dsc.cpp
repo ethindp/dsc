@@ -1,5 +1,6 @@
 #include <string>
 #include <cstddef>
+#include <cstdlib>
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -9,6 +10,7 @@
 #include <mutex>
 #include <random>
 #include <functional>
+#include <tuple>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 #include <plog/Log.h>
@@ -74,7 +76,7 @@ SDL_SetHint("SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "0");
 SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "1");
 SDL_SetHint("SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4", "1");
 SDL_SetHint("SDL_HINT_XINPUT_ENABLED", "0");
-TTS::initialize();
+tts::initialize();
 vk::ApplicationInfo app_info("Data Structure Analyzer", VK_MAKE_VERSION(0, 1, 0), "DSC", VK_MAKE_VERSION(0, 1, 0), VK_API_VERSION_1_2);
 std::vector<const char *> layerNames;
 #if !defined(NDEBUG)
@@ -174,7 +176,7 @@ AVLTree tree;
 for (int i = 0; i < 100; ++i)
 tree.insert(distribution(rng));
 
-TTS::say(fmt::format("Tree created, 65536 items. Height: {}", tree.height()));
+tts::say(fmt::format("Tree created, 65536 items. Height: {}", tree.height()));
 constexpr uint8_t TICKS_PER_SECOND = 60;
 constexpr uint8_t SKIP_TICKS = 1000 / TICKS_PER_SECOND;
 uint64_t next_game_tick = SDL_GetPerformanceCounter();
@@ -184,8 +186,60 @@ while (!done) {
 sleep_time = next_game_tick - SDL_GetPerformanceCounter();
 if (sleep_time>=0)
 std::this_thread::sleep_for(std::chrono::duration<long long, std::milli>(sleep_time));
-
-if (!tree.processEvents())
+SDL_Event e;
+if (SDL_PollEvent(&e))
+switch (e.type) {
+case SDL_CONTROLLERAXISMOTION:
+tree.on_controller_axis_motion(std::make_tuple(e.caxis.which, e.caxis.axis, e.caxis.value));
 break;
+case SDL_CONTROLLERBUTTONDOWN:
+case SDL_CONTROLLERBUTTONUP:
+tree.on_controller_button(std::make_tuple(e.cbutton.type, e.cbutton.which, e.cbutton.button, e.cbutton.state));
+break;
+case SDL_DOLLARGESTURE:
+case SDL_DOLLARRECORD:
+tree.on_complex_gesture(std::make_tuple(e.dgesture.type, e.dgesture.touchId, e.dgesture.gestureId, e.dgesture.numFingers, e.dgesture.error, e.dgesture.x, e.dgesture.y));
+break;
+case SDL_FINGERMOTION:
+case SDL_FINGERDOWN:
+case SDL_FINGERUP:
+tree.on_finger_touch(std::make_tuple(e.tfinger.type, e.tfinger.touchId, e.tfinger.fingerId, e.tfinger.x, e.tfinger.y, e.tfinger.dx, e.tfinger.dy, e.tfinger.pressure));
+break;
+case SDL_KEYDOWN:
+case SDL_KEYUP:
+tree.on_keyboard(std::make_tuple(e.key.state, e.key.repeat, e.key.keysym.sym, e.key.keysym.mod));
+break;
+case SDL_JOYAXISMOTION:
+tree.on_joystick_axis_motion(std::make_tuple(e.jaxis.which, e.jaxis.axis, e.jaxis.value));
+break;
+case SDL_JOYBALLMOTION:
+tree.on_joystick_trackball_motion(std::make_tuple(e.jball.which, e.jball.ball, e.jball.xrel, e.jball.yrel));
+break;
+case SDL_JOYHATMOTION:
+tree.on_joystick_hat_motion(std::make_tuple(e.jhat.which, e.jhat.hat, e.jhat.value));
+break;
+case SDL_JOYBUTTONDOWN:
+case SDL_JOYBUTTONUP:
+tree.on_joystick_button(std::make_tuple(e.jbutton.which, e.jbutton.button, e.jbutton.state));
+break;
+case SDL_MOUSEMOTION:
+tree.on_mouse_motion(std::make_tuple(e.motion.which, e.motion.state, e.motion.x, e.motion.y, e.motion.xrel, e.motion.yrel));
+break;
+case SDL_MOUSEBUTTONDOWN:
+case SDL_MOUSEBUTTONUP:
+tree.on_mouse_button(std::make_tuple(e.button.which, e.button.button, e.button.state, e.button.clicks, e.button.x, e.button.y));
+break;
+case SDL_MOUSEWHEEL:
+tree.on_mouse_wheel(std::make_tuple(e.wheel.which, e.wheel.x, e.wheel.y, e.wheel.direction));
+break;
+case SDL_MULTIGESTURE:
+tree.on_multi_gesture(std::make_tuple(e.mgesture.touchId, e.mgesture.dTheta, e.mgesture.dDist, e.mgesture.x, e.mgesture.y, e.mgesture.numFingers));
+break;
+case SDL_QUIT:
+std::exit(0);
+break;
+default:
+break;
+}
 }
 }

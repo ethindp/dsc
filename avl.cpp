@@ -19,7 +19,6 @@ void AVLTree::rebalance(std::shared_ptr<AVLNode> n) {
         this->rebalance(n->parent);
     } else {
         this->root = n;
-        this->rootNode = root;
     }
 }
 
@@ -91,12 +90,11 @@ void AVLTree::setBalance(std::shared_ptr<AVLNode> n) {
     n->balance = this->height(n->right) - this->height(n->left);
 }
 
-AVLTree::AVLTree(void) : root(nullptr), rootNode(nullptr) {}
+AVLTree::AVLTree(void) : root(nullptr), direction(std::nullopt) {}
 
 bool AVLTree::insert(const DsData key) {
     if (!root) {
         this->root = std::make_shared<AVLNode>(AVLNode(key, nullptr));
-        this->rootNode = root;
     } else {
         std::shared_ptr<AVLNode> n = root, parent;
 
@@ -148,7 +146,6 @@ void AVLTree::remove(const DsData key) {
 
         if (root->key == delNode->key) {
             root = child;
-            rootNode = root;
         } else {
             if (parent->left == n) {
                 parent->left = child;
@@ -161,82 +158,46 @@ void AVLTree::remove(const DsData key) {
     }
 }
 
-bool AVLTree::processEvents() {
-auto tree_root = this->root;
-this->curNode = this->root;
-bool expanded_left = false, expanded_right = false;
-unsigned long long level = 0;
-SDL_Event e;
-if (SDL_PollEvent(&e)) {
-if (e.type==SDL_KEYDOWN) {
-if (e.key.keysym.sym == SDLK_RIGHT) {
-if (root->right) {
-expanded_right = true;
-TTS::say("Right branch open");
-++level;
-TTS::say(fmt::format("Level {}", level), false);
+void AVLTree::on_keyboard(const std::tuple<const std::uint8_t, const std::uint8_t, const SDL_Keycode, const std::uint16_t> data) {
+auto [state, repeat, key, mod] = data;
+if (state == SDL_PRESSED && !repeat) {
+switch (key) 
+case SDLK_v: {
+tts::say(fmt::format("Current node: {}, balance of {} with value {}. {}, {}, {}", get_node_type_str(this->root->key), this->root->balance, get_node_data(this->root->key), this->root->parent ? "Has parent" : "At root of tree", this->root->left ? "has left branch" : "no left branch", this->root->right ? "has right branch" : "no right branch"), true);
+break;
+case SDLK_UP:
+if (this->root->parent) {
+this->root = this->root->parent;
+tts::say("At previous tree level", true);
 } else
-TTS::say("There is no right branch on this node");
+tts::say("At top of tree", true);
+break;
+case SDLK_LEFT: {
+tts::say("Set left node to next node. Press down arrow to expand.", true);
+this->direction = NodeDirection::Left;
 }
-if (e.key.keysym.sym == SDLK_LEFT) {
-if (root->left) {
-expanded_left = true;
-TTS::say("Left branch open");
-++level;
-TTS::say(fmt::format("Level {}", level), false);
-} else
-TTS::say("There is no left branch on this node");
+break;
+case SDLK_RIGHT: {
+tts::say("Set right node to next node. Press down arrow to expand.", true);
+this->direction = NodeDirection::Right;
+}
+break;
+case SDLK_DOWN: {
+if (this->direction)
+if (this->direction == NodeDirection::Left) {
+tts::say("Left branch expanded", true);
+this->root = this->root->left;
+} else {
+tts::say("Right branch expanded", true);
+this->root = this->root->right;
+}
+else
+tts::say("No node direction", true);
+}
+break;
+default: return;
+}
+}
+return;
 }
 
-if (e.key.keysym.sym == SDLK_d)
-switch (tree_root->key.index()) {
-case 0:
-TTS::say(fmt::format("Node key: type signed 8-bit integer, value {}", std::get<0>(tree_root->key)));
-break;
-case 1:
-TTS::say(fmt::format("Node key: type signed 16-bit integer, value {}", std::get<1>(tree_root->key)));
-break;
-case 2:
-TTS::say(fmt::format("Node key: type signed 32-bit integer, value {}", std::get<2>(tree_root->key)));
-break;
-case 3:
-TTS::say(fmt::format("Node key: type signed 64-bit integer, value {}", std::get<3>(tree_root->key)));
-break;
-case 4:
-TTS::say(fmt::format("Node key: type unsigned 8-bit integer, value {}", std::get<4>(tree_root->key)));
-break;
-case 5:
-TTS::say(fmt::format("Node key: type unsigned 16-bit integer, value {}", std::get<5>(tree_root->key)));
-break;
-case 6:
-TTS::say(fmt::format("Node key: type unsigned 32-bit integer, value {}", std::get<6>(tree_root->key)));
-break;
-case 7:
-TTS::say(fmt::format("Node key: type unsigned 64-bit integer, value {}", std::get<7>(tree_root->key)));
-break;
-case 8:
-TTS::say(fmt::format("Node key: type signed character, value {:d}", std::get<8>(tree_root->key)));
-break;
-case 9:
-TTS::say(fmt::format("Node key: type unsigned character, value {:d}", std::get<9>(tree_root->key)));
-break;
-case 10:
-TTS::say(fmt::format("Node key: type single 32-bit float, value {:F}", std::get<10>(tree_root->key)));
-break;
-case 11:
-TTS::say(fmt::format("Node key: type double 64-bit float, value {:F}", std::get<11>(tree_root->key)));
-break;
-case 12:
-TTS::say(fmt::format("Node key: type extended float, value {:F}", std::get<12>(tree_root->key)));
-break;
-default:
-TTS::say("Node key has unknown type; data unknown");
-break;
-}
-
-if (e.key.keysym.sym == SDLK_ESCAPE)
-return false;
-}
-}
-return true;
-}

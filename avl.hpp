@@ -3,11 +3,19 @@
 #include <memory>
 #include <cstdint>
 #include <variant>
+#include <tuple>
+#include <optional>
 #include <SDL2/SDL.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <vulkan/vulkan.hpp>
 #include "common.hpp"
 #include "tts.h"
+
+enum class NodeDirection {
+Left,
+Right
+};
 
 class AVLNode {
 public:
@@ -18,7 +26,7 @@ public:
     AVLNode(const DsData key, const std::shared_ptr<AVLNode> parent) : key(key), balance(0), parent(parent), left(nullptr), right(nullptr) {}
 };
 
-class AVLTree {
+class AVLTree : public DataStructure {
 public:
     AVLTree(void);
     bool insert(const DsData key);
@@ -33,8 +41,8 @@ public:
     void setBalance                 (std::shared_ptr<AVLNode> n);
     void balance               (std::shared_ptr<AVLNode> n);
     std::shared_ptr<AVLNode> getRoot() const;
-    bool processEvents();
+    void on_keyboard(const std::tuple<const std::uint8_t, const std::uint8_t, const SDL_Keycode, const std::uint16_t>);
 private:
     std::shared_ptr<AVLNode> root;
-    const std::shared_ptr<AVLNode> rootNode;
+    std::optional<NodeDirection> direction;
 };

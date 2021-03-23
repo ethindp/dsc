@@ -1,6 +1,6 @@
 #include "tts.h"
 
-namespace TTS {
+namespace tts {
 #if (BOOST_OS_WINDOWS==1)
 const char * TolkLoadException::what() const throw () {
 return "Tolk load error. Accessibility library not loaded.";
