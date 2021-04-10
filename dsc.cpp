@@ -12,34 +12,26 @@
 #include <functional>
 #include <tuple>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
 #include <plog/Log.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
-#include <vulkan/vulkan.hpp>
+#include <glad/glad.h>
 #ifdef _WINDOWS_
 #include <windows.h>
 #endif
 #include "tts.h"
+#include "common.hpp"
 #include "avl.hpp"
 #include "btree.hpp"
 #include "rbtree.hpp"
 #include "tinyfiledialogs.h"
 
+SDL_Window *WINDOW;
 using namespace std;
 
-static vk::Instance INSTANCE;
-static vk::PhysicalDevice PHYS_DEV;
-static vk::Device DEVICE;
-static vk::CommandPool CMDPOOL;
-static mutex INSTANCE_MUTEX;
-static mutex PHYS_DEV_MUTEX;
-static mutex DEV_MUTEX;
-static mutex POOL_MUTEX;
-
+void APIENTRY opengl_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam);
 void handleNormalExit();
 void createSampleTree();
-
 #ifdef _WINDOWS_
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
 #else
@@ -62,13 +54,70 @@ tinyfd_messageBox("Critical error", ss.str().c_str(), "ok", "error", 1);
 return 1;
 }
 atexit(handleNormalExit);
-auto window = SDL_CreateWindow("Data Structure Analyzer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN|SDL_WINDOW_VULKAN|SDL_WINDOW_ALLOW_HIGHDPI);
-if (!window) {
+if (SDL_GL_LoadLibrary(nullptr)<0) {
+LOGF << "Can't load OpenGL: " << SDL_GetError();
+tinyfd_messageBox("Critical error", SDL_GetError(), "ok", "error", 1);
+return 1;
+}
+if (SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1)<0) {
+LOGF << "Can't enable hardware acceleration: " << SDL_GetError();
+tinyfd_messageBox("Critical error", SDL_GetError(), "ok", "error", 1);
+return 1;
+}
+if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4)<0) {
+LOGF << "Can't set context major version to 4: " << SDL_GetError();
+tinyfd_messageBox("Critical error", "This system does not support OpenGL 4.0", "ok", "error", 1);
+return 1;
+}
+if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6)<0) {
+LOGF << "Can't set context minor version to 5: " << SDL_GetError();
+tinyfd_messageBox("Critical error", "This system does not support OpenGL 4.60", "ok", "error", 1);
+return 1;
+}
+if (SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1)<0) {
+LOGF << "Can't enable double buffering: " << SDL_GetError();
+tinyfd_messageBox("critical error", "This systems OpenGL driver does not support double buffering", "ok", "error", 1);
+return 1;
+}
+auto flags = SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG|SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG|SDL_GL_CONTEXT_RESET_ISOLATION_FLAG;
+if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, flags)<0) {
+LOGF << "Can't set context flags (was " << hex << flags << "): " << SDL_GetError();
+tinyfd_messageBox("Critical error", "This system doesn't support one or more of the OpenGL flags this application requires", "ok", "error", 1);
+return 1;
+}
+WINDOW_MUTEX.lock();
+WINDOW = SDL_CreateWindow("Data Structure Analyzer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN|SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
+if (!WINDOW) {
 LOGF << "Can't create window: " << SDL_GetError();
 std::stringstream ss;
 ss << "Can't create window: " << SDL_GetError();
 tinyfd_messageBox("Critical error", ss.str().c_str(), "ok", "error", 1);
 return 1;
+}
+auto gl_context = SDL_GL_CreateContext(WINDOW);
+if (!gl_context) {
+LOGF << "Can't create OpenGL context: " << SDL_GetError();
+tinyfd_messageBox("Can't create OpenGL context", SDL_GetError(), "ok", "error", 1);
+return 1;
+}
+if (SDL_GL_MakeCurrent(WINDOW, gl_context)<0) {
+LOGF << "Can't set GLcontext to current: " << SDL_GetError();
+return tinyfd_messageBox("Error", "There was an error while creating the application window. Check the log for more information.", "ok", "error", 1);
+}
+if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
+LOGW << "No extensions could be loaded";
+}
+int major = 0;
+int minor = 0;
+SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &major);
+SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &minor);
+if (SDL_GL_ExtensionSupported("KHR_debug")||SDL_GL_ExtensionSupported("GL_KHR_debug")) {
+glEnable(GL_DEBUG_OUTPUT);
+glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+glDebugMessageCallback(opengl_callback, nullptr);
+glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, true);
+} else {
+LOGW << "This OpenGL context does not support the KHR_debug extension. Moving error checking to game loop.";
 }
 SDL_SetHint("SDL_HINT_FRAMEBUFFER_ACCELERATION", "1");
 SDL_SetHint("SDL_HINT_IME_INTERNAL_EDITING", "1");
@@ -76,76 +125,16 @@ SDL_SetHint("SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "0");
 SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "1");
 SDL_SetHint("SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4", "1");
 SDL_SetHint("SDL_HINT_XINPUT_ENABLED", "0");
+SDL_SetHint("SDL_HINT_RENDER_OPENGL_SHADERS", "1");
+SDL_GL_SetSwapInterval(1);
+int w = 0;
+int h = 0;
+SDL_GetWindowSize(WINDOW, &w, &h);
+WINDOW_MUTEX.unlock();
+glViewport(0, 0, w, h);
+glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+glFinish();
 tts::initialize();
-vk::ApplicationInfo app_info("Data Structure Analyzer", VK_MAKE_VERSION(0, 1, 0), "DSC", VK_MAKE_VERSION(0, 1, 0), VK_API_VERSION_1_2);
-std::vector<const char *> layerNames;
-#if !defined(NDEBUG)
-layerNames.push_back("VK_LAYER_LUNARG_standard_validation");
-#endif
-uint32_t extensionCount;
-SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, nullptr);
-std::vector<const char *> extensionNames(extensionCount);
-SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, extensionNames.data());
-vk::InstanceCreateInfo create_info({}, &app_info, static_cast<uint32_t>(layerNames.size()), layerNames.data(), extensionCount, extensionNames.data());
-{
-scoped_lock<mutex> instance_lock(INSTANCE_MUTEX);
-INSTANCE = vk::createInstance(create_info);
-VkSurfaceKHR rawSurface;
-if (!SDL_Vulkan_CreateSurface(window, INSTANCE, &rawSurface)) {
-LOGF << "Cannot create instance surface: " << SDL_GetError();
-stringstream ss;
-ss << "Cannot create instance surface: " << SDL_GetError();
-tinyfd_messageBox("Critical error", ss.str().c_str(), "ok", "error", 1);
-return 1;
-}
-vk::SurfaceKHR surface (rawSurface);
-{
-scoped_lock<mutex> phys_lock(PHYS_DEV_MUTEX);
-PHYS_DEV = INSTANCE.enumeratePhysicalDevices().front();
-auto queueFamilyPropertiesList = PHYS_DEV.getQueueFamilyProperties();
-auto queueIndex = distance(queueFamilyPropertiesList.begin(), find_if(queueFamilyPropertiesList.begin(), queueFamilyPropertiesList.end(), [](const auto& qfp) {
-return qfp.queueFlags & vk::QueueFlagBits::eGraphics;
-}));
-if (queueIndex > queueFamilyPropertiesList.size()) {
-LOGF << "The primary graphics device does not support graphics operations";
-tinyfd_messageBox("Critical error", "The primary GPU on this system has no available graphics queues.", "ok", "error", 1);
-return 1;
-}
-auto presentQueueIndex = PHYS_DEV.getSurfaceSupportKHR(static_cast<uint32_t>(queueIndex), surface) ? queueIndex : queueFamilyPropertiesList.size();
-if (presentQueueIndex == queueFamilyPropertiesList.size()) {
-for (size_t i = 0; i < queueFamilyPropertiesList.size(); i++) {
-if ((queueFamilyPropertiesList[i].queueFlags & vk::QueueFlagBits::eGraphics) && PHYS_DEV.getSurfaceSupportKHR(static_cast<uint32_t>( i ), surface)) {
-queueIndex = static_cast<uint32_t>(i);
-presentQueueIndex = i;
-break;
-}
-}
-if (presentQueueIndex == queueFamilyPropertiesList.size()) {
-for (size_t i = 0; i < queueFamilyPropertiesList.size(); i++) {
-if (PHYS_DEV.getSurfaceSupportKHR(static_cast<uint32_t>(i), surface)) {
-presentQueueIndex = i;
-break;
-}
-}
-}
-}
-if ((queueIndex == queueFamilyPropertiesList.size()) || (presentQueueIndex == queueFamilyPropertiesList.size())) {
-LOGF << "Cannot find a queue family that supports graphics and presentation";
-tinyfd_messageBox("Critical error", "This GPU does not support any queue families that support both graphics and presentation modes", "ok", "error", 1);
-return 1;
-}
-auto queuePriority = 0.5f;
-vk::DeviceQueueCreateInfo deviceQueueCreateInfo({}, static_cast<uint32_t>(queueIndex), 1, &queuePriority);
-{
-scoped_lock<mutex> dev_lock(DEV_MUTEX);
-DEVICE = PHYS_DEV.createDevice(vk::DeviceCreateInfo( {}, deviceQueueCreateInfo ) );
-{
-scoped_lock<mutex> pool_lock(POOL_MUTEX);
-CMDPOOL = DEVICE.createCommandPool(vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlags(), queueIndex));
-}
-}
-}
-}
 createSampleTree();
 return 0;
 } catch (std::exception &ex) {
@@ -171,12 +160,12 @@ random_device entropy_source;
 generate_n(data, mt19937::state_size, ref(entropy_source));
 seed_seq prng_seed(data, data + mt19937::state_size);
 rng.seed(prng_seed);
-uniform_int_distribution<uint16_t> distribution(0, 65535);
+uniform_real_distribution<double> distribution(0.0, 1000.0);
 AVLTree tree;
-for (int i = 0; i < 100; ++i)
+for (int i = 0; i < 10; ++i)
 tree.insert(distribution(rng));
 
-tts::say(fmt::format("Tree created, 65536 items. Height: {}", tree.height()));
+tts::say(fmt::format("Tree created, 10 items. Height: {}", tree.height()));
 constexpr uint8_t TICKS_PER_SECOND = 60;
 constexpr uint8_t SKIP_TICKS = 1000 / TICKS_PER_SECOND;
 uint64_t next_game_tick = SDL_GetPerformanceCounter();
@@ -186,6 +175,31 @@ while (!done) {
 sleep_time = next_game_tick - SDL_GetPerformanceCounter();
 if (sleep_time>=0)
 std::this_thread::sleep_for(std::chrono::duration<long long, std::milli>(sleep_time));
+if (!SDL_GL_ExtensionSupported("KHR_debug") || !SDL_GL_ExtensionSupported("GL_KHR_debug")) {
+auto gl_err = glGetError();
+while (gl_err != GL_NO_ERROR) {
+if (gl_err==GL_INVALID_ENUM)
+LOGW << "GL: unacceptable enumerated value; ignored";
+else if (gl_err == GL_INVALID_VALUE)
+LOGW << "GL: out-of-range argument; ignored";
+else if (gl_err == GL_INVALID_OPERATION)
+LOGW << "GL: disallowed argument in current state; ignored";
+else if (gl_err == GL_INVALID_FRAMEBUFFER_OPERATION)
+LOGW << "GL: framebuffer object incomplete; command ignored";
+else if (gl_err == GL_OUT_OF_MEMORY) {
+LOGF << "GL: out of memory";
+tinyfd_messageBox("Critical error", "Not enough memory to continue", "ok", "error", 1);
+std::terminate();
+} else if (gl_err == GL_STACK_UNDERFLOW)
+LOGW << "GL: attempt to cause internal stack underflow";
+else if (gl_err == GL_STACK_OVERFLOW)
+LOGW << "GL: attempt to cause internal stack overflow";
+else
+LOGW << "GL: error unknown, code " << gl_err;
+gl_err = glGetError();
+}
+}
+tree.draw();
 SDL_Event e;
 if (SDL_PollEvent(&e))
 switch (e.type) {
@@ -241,5 +255,22 @@ break;
 default:
 break;
 }
+}
+}
+
+void APIENTRY opengl_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
+if (severity==GL_DEBUG_SEVERITY_HIGH) {
+if (type==GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR) {
+LOGF << "Undefined behavior! Source: " << source << ", ID: " << id << ": " << message;
+tinyfd_messageBox("Critical alert!", "The graphics subsystem has entered an unstable state. To avoid corruption or dangerous behavior that may be caused due to the instability of the graphics subsystem after this point, this program must terminate. Click OK to terminate the application.", "ok", "error", 1);
+std::exit(1);
+}
+LOGE << "OpenGL: (" << id << "): " << message;
+} else if (severity==GL_DEBUG_SEVERITY_MEDIUM) {
+LOGW << "OpenGL: (" << id << "): " << message;
+} else if (severity==GL_DEBUG_SEVERITY_LOW) {
+LOGW << "OpenGL (low): (" << id << "): " << message;
+} else if (severity==GL_DEBUG_SEVERITY_NOTIFICATION) {
+LOGD << "OpenGL: (" << id << "): " << message;
 }
 }

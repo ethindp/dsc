@@ -1,6 +1,7 @@
 #include "avl.hpp"
 
 void AVLTree::rebalance(std::shared_ptr<AVLNode> n) {
+this->points.clear();
     this->setBalance(n);
 
     if (n->balance == -2) {
@@ -90,7 +91,21 @@ void AVLTree::setBalance(std::shared_ptr<AVLNode> n) {
     n->balance = this->height(n->right) - this->height(n->left);
 }
 
-AVLTree::AVLTree(void) : root(nullptr), direction(std::nullopt) {}
+AVLTree::AVLTree(void) : root(nullptr), direction(std::nullopt) {
+WINDOW_MUTEX.lock();
+this->renderer = SDL_CreateRenderer(WINDOW, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+WINDOW_MUTEX.unlock();
+if (!this->renderer) {
+fmt::memory_buffer buf;
+fmt::format_to(buf, "Could not create renderer: {}", SDL_GetError());
+throw std::runtime_error(buf.data());
+}
+if (SDL_SetRenderDrawColor(this->renderer, 0xFF, 0xFF, 0xFF, 0xFF)!=0) {
+fmt::memory_buffer buf;
+fmt::format_to(buf, "Could not set render draw color: {}", SDL_GetError());
+throw std::runtime_error(buf.data());
+}
+}
 
 bool AVLTree::insert(const DsData key) {
     if (!root) {
@@ -199,5 +214,52 @@ default: return;
 }
 }
 return;
+}
+
+void AVLTree::draw() {
+if (SDL_RenderClear(this->renderer) != 0) {
+fmt::memory_buffer buf;
+fmt::format_to(buf, "Could not clear render target: {}", SDL_GetError());
+throw std::runtime_error(buf.data());
+}
+this->points.clear();
+this->cur_x = 0;
+this->cur_y = 0;
+this->generate_points(this->root, [&](const auto node, const auto dir) {
+if (dir == NodeDirection::Left)
+cur_y -= 5;
+else if (dir == NodeDirection::Right)
+cur_y += 5;
+
+points.push_back({cur_x, cur_y});
+points.push_back({cur_x, cur_y + 5});
+});
+if (SDL_RenderDrawLines(this->renderer, this->points.data(), this->points.size())!=0) {
+fmt::memory_buffer buf;
+fmt::format_to(buf, "Could not draw lines to renderer: {}", SDL_GetError());
+throw std::runtime_error(buf.data());
+}
+}
+
+void AVLTree::generate_points(const std::shared_ptr<AVLNode> node, const std::function<void(const std::shared_ptr<AVLNode>, const NodeDirection)> func) {
+if (node)
+func(node, NodeDirection::None);
+
+this->cur_x += 5;
+if (node->left)
+func(node->left, NodeDirection::Left);
+
+if (node->right)
+func(node->right, NodeDirection::Right);
+
+if (node->left)
+generate_points(node->left, func);
+
+if (node->right)
+generate_points(node->right, func);
+}
+
+AVLTree::~AVLTree() {
+SDL_DestroyRenderer(this->renderer);
 }
 

@@ -3,10 +3,13 @@
 #include <cstdint>
 #include <functional>
 #include <tuple>
+#include <mutex>
 #include <SDL2/SDL.h>
-#include <vulkan/vulkan.hpp>
 #include <fmt/core.h>
 #include <fmt/format.h>
+
+extern SDL_Window *WINDOW;
+static std::mutex WINDOW_MUTEX;
 
 typedef std::variant<std::int8_t, std::int16_t, std::int32_t, std::int64_t, std::uint8_t, std::uint16_t, std::uint32_t, std::uint64_t, signed char, unsigned char, float, double, long double> DsData;
 
@@ -53,6 +56,8 @@ virtual void on_joystick_trackball_motion(const std::tuple<const SDL_JoystickID,
 virtual void on_joystick_hat_motion(const std::tuple<const SDL_JoystickID, const std::uint8_t, const std::uint8_t>) { }
 // Joystick button event. Params (including type): https://wiki.libsdl.org/SDL_JoyButtonEvent
 virtual void on_joystick_button(const std::tuple<const SDL_JoystickID, const std::uint8_t, const std::uint8_t>) { }
+// Draws the tree
+void draw();
 };
 
 inline const char* get_node_type_str(const DsData d) {
@@ -74,47 +79,47 @@ default: return "Unknown";
 }
 }
 
-inline const char* get_node_data(const DsData d) {
+inline std::string get_node_data(const DsData d) {
 fmt::memory_buffer buf;
 switch (d.index()) {
 case 0:
-fmt::format_to(buf, "{}", std::get<0>(d));
+fmt::format_to(buf, "{:d}", std::get<0>(d));
 break;
 case 1:
-fmt::format_to(buf, "{}", std::get<1>(d));
+fmt::format_to(buf, "{:d}", std::get<1>(d));
 break;
 case 2:
-fmt::format_to(buf, "{}", std::get<2>(d));
+fmt::format_to(buf, "{:d}", std::get<2>(d));
 break;
 case 3:
-fmt::format_to(buf, "{}", std::get<3>(d));
+fmt::format_to(buf, "{:d}", std::get<3>(d));
 break;
 case 4:
-fmt::format_to(buf, "{}", std::get<4>(d));
+fmt::format_to(buf, "{:d}", std::get<4>(d));
 break;
 case 5:
-fmt::format_to(buf, "{}", std::get<5>(d));
+fmt::format_to(buf, "{:d}", std::get<5>(d));
 break;
 case 6:
-fmt::format_to(buf, "{}", std::get<6>(d));
+fmt::format_to(buf, "{:d}", std::get<6>(d));
 break;
 case 7:
-fmt::format_to(buf, "{}", std::get<7>(d));
+fmt::format_to(buf, "{:d}", std::get<7>(d));
 break;
 case 8:
-fmt::format_to(buf, "{:L}", std::get<8>(d));
+fmt::format_to(buf, "{}", std::get<8>(d));
 break;
 case 9:
-fmt::format_to(buf, "{:L}", std::get<9>(d));
+fmt::format_to(buf, "{}", std::get<9>(d));
 break;
 case 10:
-fmt::format_to(buf, "{}", std::get<10>(d));
+fmt::format_to(buf, "{:F}", std::get<10>(d));
 break;
 case 11:
-fmt::format_to(buf, "{}", std::get<11>(d));
+fmt::format_to(buf, "{:F}", std::get<11>(d));
 break;
 case 12:
-fmt::format_to(buf, "{}", std::get<12>(d));
+fmt::format_to(buf, "{:F}", std::get<12>(d));
 break;
 default:
 fmt::format_to(buf, "Unknown");

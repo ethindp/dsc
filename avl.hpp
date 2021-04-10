@@ -5,14 +5,17 @@
 #include <variant>
 #include <tuple>
 #include <optional>
+#include <stdexcept>
+#include <vector>
+#include <functional>
 #include <SDL2/SDL.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
-#include <vulkan/vulkan.hpp>
 #include "common.hpp"
 #include "tts.h"
 
 enum class NodeDirection {
+None,
 Left,
 Right
 };
@@ -29,6 +32,7 @@ public:
 class AVLTree : public DataStructure {
 public:
     AVLTree(void);
+    ~AVLTree();
     bool insert(const DsData key);
     void remove(const DsData key);
     std::shared_ptr<AVLNode> rotateLeft          (std::shared_ptr<AVLNode> a);
@@ -42,7 +46,13 @@ public:
     void balance               (std::shared_ptr<AVLNode> n);
     std::shared_ptr<AVLNode> getRoot() const;
     void on_keyboard(const std::tuple<const std::uint8_t, const std::uint8_t, const SDL_Keycode, const std::uint16_t>);
+    void draw();
 private:
+void generate_points(const std::shared_ptr<AVLNode> node, const std::function<void(const std::shared_ptr<AVLNode>, const NodeDirection)>);
     std::shared_ptr<AVLNode> root;
     std::optional<NodeDirection> direction;
+    SDL_Renderer *renderer;
+    std::vector<SDL_Point> points;
+    int cur_x;
+    int cur_y;
 };
