@@ -3,12 +3,10 @@
 #include <boost/predef.h>
 #if (BOOST_OS_WINDOWS==1)
 #include "tolk.h"
-#else
-#include <cstdlib>
-#include <speechd_types.h>
-#include <libspeechd.h>
-#endif
 #include <exception>
+#else
+#include <QTextToSpeech>
+#endif
 
 namespace tts {
 #if (BOOST_OS_WINDOWS==1)
@@ -27,16 +25,7 @@ public:
 const char * what () const throw ();
 };
 #else
-extern SPDConnection *sockfd;
-class SPDInitException : public std::exception {
-public:
-explicit SPDInitException (char* msg) : std::exception(msg) { }
-};
-
-class SPDSpeakException : public std::exception {
-public:
-explicit SPDSpeakException(char* message) : std::exception(message) { }
-};
+extern QTextToSpeech* tts;
 #endif
 void initialize();
 void shutdown();

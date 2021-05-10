@@ -12,6 +12,7 @@
 #include <functional>
 #include <tuple>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <plog/Log.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
@@ -54,38 +55,27 @@ tinyfd_messageBox("Critical error", ss.str().c_str(), "ok", "error", 1);
 return 1;
 }
 atexit(handleNormalExit);
+LOGI << "Loading OpenGL";
 if (SDL_GL_LoadLibrary(nullptr)<0) {
 LOGF << "Can't load OpenGL: " << SDL_GetError();
 tinyfd_messageBox("Critical error", SDL_GetError(), "ok", "error", 1);
 return 1;
 }
+LOGI << "Enabling accelerated visuals";
 if (SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1)<0) {
 LOGF << "Can't enable hardware acceleration: " << SDL_GetError();
 tinyfd_messageBox("Critical error", SDL_GetError(), "ok", "error", 1);
 return 1;
 }
-if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4)<0) {
-LOGF << "Can't set context major version to 4: " << SDL_GetError();
-tinyfd_messageBox("Critical error", "This system does not support OpenGL 4.0", "ok", "error", 1);
-return 1;
-}
-if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6)<0) {
-LOGF << "Can't set context minor version to 5: " << SDL_GetError();
-tinyfd_messageBox("Critical error", "This system does not support OpenGL 4.60", "ok", "error", 1);
-return 1;
-}
+LOGI << "Enabling double buffering";
 if (SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1)<0) {
 LOGF << "Can't enable double buffering: " << SDL_GetError();
 tinyfd_messageBox("critical error", "This systems OpenGL driver does not support double buffering", "ok", "error", 1);
 return 1;
 }
-auto flags = SDL_GL_CONTEXT_DEBUG_FLAG | SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG|SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG|SDL_GL_CONTEXT_RESET_ISOLATION_FLAG;
-if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, flags)<0) {
-LOGF << "Can't set context flags (was " << hex << flags << "): " << SDL_GetError();
-tinyfd_messageBox("Critical error", "This system doesn't support one or more of the OpenGL flags this application requires", "ok", "error", 1);
-return 1;
-}
+LOGI << "Acquiring window mutex";
 WINDOW_MUTEX.lock();
+LOGI << "Creating window";
 WINDOW = SDL_CreateWindow("Data Structure Analyzer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN|SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
 if (!WINDOW) {
 LOGF << "Can't create window: " << SDL_GetError();
@@ -94,16 +84,19 @@ ss << "Can't create window: " << SDL_GetError();
 tinyfd_messageBox("Critical error", ss.str().c_str(), "ok", "error", 1);
 return 1;
 }
+LOGI << "Creating OpenGL context";
 auto gl_context = SDL_GL_CreateContext(WINDOW);
 if (!gl_context) {
 LOGF << "Can't create OpenGL context: " << SDL_GetError();
 tinyfd_messageBox("Can't create OpenGL context", SDL_GetError(), "ok", "error", 1);
 return 1;
 }
+LOGI << "Setting new context to current";
 if (SDL_GL_MakeCurrent(WINDOW, gl_context)<0) {
 LOGF << "Can't set GLcontext to current: " << SDL_GetError();
 return tinyfd_messageBox("Error", "There was an error while creating the application window. Check the log for more information.", "ok", "error", 1);
 }
+LOGI << "Loading OpenGL extensions";
 if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
 LOGW << "No extensions could be loaded";
 }
@@ -111,30 +104,52 @@ int major = 0;
 int minor = 0;
 SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &major);
 SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &minor);
+LOGI << "Initialized OpenGL v. " << major << "." << minor;
 if (SDL_GL_ExtensionSupported("KHR_debug")||SDL_GL_ExtensionSupported("GL_KHR_debug")) {
+LOGI << "Context debugging supported; enabling synchronous output";
 glEnable(GL_DEBUG_OUTPUT);
 glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 glDebugMessageCallback(opengl_callback, nullptr);
 glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, true);
 } else {
-LOGW << "This OpenGL context does not support the KHR_debug extension. Moving error checking to game loop.";
+LOGW << "This OpenGL context does not support the KHR_debug or GL_KHR_debug extension. Moving error checking to internal loop.";
 }
+LOGI << "Enabling framebuffer acceleration";
 SDL_SetHint("SDL_HINT_FRAMEBUFFER_ACCELERATION", "1");
+LOGI << "Enabling IME internal editing";
 SDL_SetHint("SDL_HINT_IME_INTERNAL_EDITING", "1");
+LOGI << "Disabling background joystick events";
 SDL_SetHint("SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "0");
+LOGI << "Setting render scale quality to 1";
 SDL_SetHint("SDL_HINT_RENDER_SCALE_QUALITY", "1");
+LOGI << "Disabling close on alt-f4 on Windows";
 SDL_SetHint("SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4", "1");
+LOGI << "Disabling XInput";
 SDL_SetHint("SDL_HINT_XINPUT_ENABLED", "0");
+LOGI << "Enabling OpenGL shader rendering";
 SDL_SetHint("SDL_HINT_RENDER_OPENGL_SHADERS", "1");
+LOGI << "Setting OpenGL swap interval to 1";
 SDL_GL_SetSwapInterval(1);
 int w = 0;
 int h = 0;
 SDL_GetWindowSize(WINDOW, &w, &h);
+LOGI << "Window size: " << h << "x" << w;
+LOGI << "Releasing window mutex";
 WINDOW_MUTEX.unlock();
+LOGI << "Setting OpenGL viewport to window dimensions";
 glViewport(0, 0, w, h);
+LOGI << "Clearing color to black";
 glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+LOGI << "Requesting immediate command processing for enqueued OpenGL commands";
 glFinish();
+LOGI << "Initializing TTS engine";
 tts::initialize();
+LOGI << "Initializing TTF engine";
+if (TTF_Init()<0) {
+LOGF << "Failed to initialize TTF subsystem: " << SDL_GetError();
+return tinyfd_messageBox("Error", "There was an error while initializing the font subsystem. Check the log for more information.", "ok", "error", 1);
+}
+LOGI << "Creating sample tree";
 createSampleTree();
 return 0;
 } catch (std::exception &ex) {
@@ -149,6 +164,10 @@ return 1;
 }
 
 void handleNormalExit() {
+if (TTF_WasInit())
+TTF_Quit();
+
+if (SDL_WasInit(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS))
 SDL_Quit();
 }
 
@@ -169,11 +188,11 @@ tts::say(fmt::format("Tree created, 10 items. Height: {}", tree.height()));
 constexpr uint8_t TICKS_PER_SECOND = 60;
 constexpr uint8_t SKIP_TICKS = 1000 / TICKS_PER_SECOND;
 uint64_t next_game_tick = SDL_GetPerformanceCounter();
-uint64_t sleep_time = 0;
+uint64_t sleep_time = SKIP_TICKS;
 bool done = false;
 while (!done) {
 sleep_time = next_game_tick - SDL_GetPerformanceCounter();
-if (sleep_time>=0)
+if (sleep_time > 0)
 std::this_thread::sleep_for(std::chrono::duration<long long, std::milli>(sleep_time));
 if (!SDL_GL_ExtensionSupported("KHR_debug") || !SDL_GL_ExtensionSupported("GL_KHR_debug")) {
 auto gl_err = glGetError();

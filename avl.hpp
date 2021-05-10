@@ -9,8 +9,10 @@
 #include <vector>
 #include <functional>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <plog/Log.h>
 #include "common.hpp"
 #include "tts.h"
 
@@ -55,4 +57,8 @@ void generate_points(const std::shared_ptr<AVLNode> node, const std::function<vo
     std::vector<SDL_Point> points;
     int cur_x;
     int cur_y;
+TTF_Font *font;
+int wwidth = 0;
+int wheight = 0;
+ViewMode view_mode = ViewMode::Graphical;
 };

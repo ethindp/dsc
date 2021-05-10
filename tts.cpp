@@ -14,7 +14,7 @@ const char* TolkNotLoadedException::what() const throw() {
 return "Tolk not loaded.";
 }
 #else
-SPDConnection *sockfd;
+QTextToSpeech* tts;
 #endif
 void initialize() {
 #if (BOOST_OS_WINDOWS==1)
@@ -27,10 +27,7 @@ if (!Tolk_DetectScreenReader()) {
 throw TolkNoOutputAvailableException();
 }
 #else
-sockfd = spd_open("mapclient", NULL, NULL, SPD_MODE_THREADED);
-if (sockfd==0) {
-throw SPDInitException("Speech Dispatcher initialization failed.");
-}
+tts = new QTextToSpeech(nullptr);
 #endif
 }
 
@@ -40,7 +37,7 @@ if (!Tolk_IsLoaded()) {
 throw TolkNotLoadedException();
 }
 #else
-spd_close(sockfd);
+delete tts;
 #endif
 }
 
@@ -65,25 +62,10 @@ Tolk_Braille(str.c_str());
 }
 }
 #else
-if (!interrupt) {
-if (text.empty())
-return;
-int ret = spd_say(sockfd, SPD_MESSAGE, text.c_str());
-if (ret==-1) {
-throw SPDSpeakException("An internal Speech Dispatcher error has occured. Please ensure that speech dispatcher is configured correctly.");
-}
-} else {
-if (text.empty())
-return;
-int ret = spd_stop(sockfd);
-if (ret==-1) {
-throw SPDSpeakException("An internal Speech Dispatcher error has occured. Please ensure that speech dispatcher is configured correctly.");
-}
-ret = spd_say(sockfd, SPD_MESSAGE, text.c_str());
-if (ret==-1) {
-throw SPDSpeakException("An internal Speech Dispatcher error has occured. Please ensure that speech dispatcher is configured correctly.");
-}
-}
+if (interrupt)
+tts->stop();
+
+tts->say(text.data());
 #endif
 }
 }

@@ -18,6 +18,9 @@ This tool uses [vcpkg](https://github.com/microsoft/vcpkg) for reproduceable bui
 * `freetype[core]`
 * `plog[core]`
 * `glad[core]`
+* `boost`
+* `sdl2-ttf[core]`
+* `qt5[speech]` (non-windows targets only)
 
 Some of the above dependencies have optional extras. These extras may or may not have any benefit when building the DSA. At the time of writing, these available extras are:
 
@@ -34,20 +37,44 @@ Some of the above dependencies have optional extras. These extras may or may not
 * `glad[glsc2-api-{20|latest}]`: Imports extensions from the OpenGL SC 2 2.0 and/or latest specifications (allows individual extension version selection)
 * `glad[glx|wgl]`: forces glad to use GLX (only available on Linux) or WGL (only available on Windows) for extensions
 * `glad[loader]`: Generate loader logic
+* `boost[mpi]`: Enable MPI support
+* The `qt5` package contains a number of extras to enable separate QT modules. The special `all` feature enables everything; the `latest` feature installs the latest QT5 release. The `qt5` package is a meta-package that just refers to the individual `qt5-*` packages and will most likely install a lot of dependencies that the individuals will not.
 
 Note: the majority of options are not needed here. For glad, it is strongly recommended that you install the core and extensions modules, and do not select a loader or specification version unless your building for a special configuration. The vulkan extension for SDL2 is currently unused by the DSA and therefore will provide no benefit. The modules for freetype will allow loading of fonts that are compressed in various formats; if you would like the widest array of these, it is strongly encouraged that you enable everything.
 
 To install the aforementioned recommended configuration, run the command:
 
 ```none
-vcpkg install --triplet x64-windows sdl2 fmt freetype[*] plog glad[extensions]
+vcpkg install sdl2 fmt freetype[*] plog glad[extensions] boost sdl2-ttf
+```
+
+If you desire a 64-bit build instead of the default (a 32-bit build), add `--triplet x64-windows` to the command-line invocation.
+
+Or, on non-windows platforms:
+
+```none
+vcpkg install sdl2 fmt freetype[*] plog glad[extensions] boost qt5-base qt5-speech sdl2-ttf
 ```
 
 ## Building
 
-1. Download and set up Visual Studio 2019 with the C++ workload. Be sure to also install cmake.
+### Windows
+
+1. Download and set up Visual Studio 2019 with the C++ workload. Be sure to also install cmake. Then, open the developer command prompt.
 2. Set up vcpkg as described above.
 3. Install the dependencies above.
 4. Clone this repository.
-5. Run cmake and set the `CMAKE_TOOLCHAIN_FILE` definition to `$VCPKGROOT/scripts/buildsystems/vcpkg.cmake`, where `$VCPKGROOT` is the directory where you downloaded vcpkg. For windows, also set the generator to `NMake Makefiles`. Alternatively, use `cmake-gui`.
-6. Run `nmake`/`make`.
+5. Run cmake and set the `CMAKE_TOOLCHAIN_FILE` definition to `$VCPKGROOT/scripts/buildsystems/vcpkg.cmake`, where `$VCPKGROOT` is the directory where you downloaded vcpkg. For windows, also set the generator to `NMake Makefiles`. Alternatively, use `cmake-gui`. (You can also generate a Ninja build script, if you like, though you will need to install NInga for this to work.)
+6. Run `nmake`.
+
+### Non-windows platforms (Unix, Linux, BSD, ...)
+
+Note: vcpkg may require you to install external dependencies. These external dependencies are not enumerated here and you will need to install them when vcpkg prompts you to do so. You can then re-run the installation command and vcpkg will resume where it left off, although it will need to redo the configuration steps of the process.
+
+1. Clone vcpkg and this repository in separate directories.
+2. Bootstrap vcpkg by running the `bootstrap-vcpkg.sh` script.
+3. Run the installation command above for non-windows platforms. This installation process will take a considerable amount of time.
+4. Change to the directory of this repository.
+5. Run cmake, setting `CMAKE_TOOLCHAIN_FILE` to the vcpkg.cmake CMake script located under `scripts/buildsystems` of the VCPKG root.
+6. Run `make`.
+
