@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
     atexit(handleNormalExit);
     LOGI << "Creating window";
     sf::ContextSettings settings;
-    settings.majorVersion = 4;
-    settings.minorVersion = 6;
+    settings.majorVersion = 3;
+    settings.minorVersion = 2;
     settings.attributeFlags = sf::ContextSettings::Debug;
     sf::RenderWindow window(sf::VideoMode::getFullscreenModes().front(),
                             "Data Structure Analyzer", sf::Style::Fullscreen,
